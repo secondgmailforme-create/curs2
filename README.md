@@ -1,169 +1,703 @@
-# curs5
+# curs2
 
-Курсовая. Внутри — Node.js бэкенд (Express + Socket.IO + PostgreSQL + Redis) и
-кучка статических HTML-страниц фронта, которые этот же бэкенд и отдаёт.
-Всё завёрнуто в Docker, чтобы не плясать с локальной установкой Postgres и
-Node.
+Курсовой проект: веб-приложение для службы поддержки пользователей. Внутри — Node.js backend на Express, PostgreSQL, Redis, Socket.IO и статический frontend на HTML/CSS/JS. Проект рассчитан на запуск через Docker Compose, чтобы не ставить локально Node.js, PostgreSQL и Redis.
+
+Приложение работает как helpdesk: клиент создаёт обращение или пишет в чат, AI-помощник может ответить автоматически, оператор берёт заявку в работу, эксперт подключается к сложным обращениям, администратор управляет пользователями, заявками, категориями и статистикой.
 
 ## Что нужно
 
-Только Docker Desktop. Больше ничего ставить не надо — ни Node, ни Postgres,
-ни Redis. Версия Docker подойдёт любая свежая (тестировал на v27).
+Для обычного запуска нужен только Docker.
 
-Порты, которые должны быть свободны на хосте: `3001`, `5432`, `6379`,
-а также `1025` и `8025` для Mailpit. Если что-то занято — поменяйте
-`*_PORT_HOST` в `.env`.
+Установить:
 
-## Как запустить
+- Docker Desktop / Docker Engine;
+- Docker Compose;
+- Git, если проект скачивается через `git clone`.
 
-Скачать репозиторий, зайти в папку, дважды кликнуть `up.bat` (Windows) или
-`./start.sh` (Linux/macOS). На первый запуск уйдёт минуты три — качается
-Node-образ и npm-зависимости. Дальше — секунды.
+Порты по умолчанию:
 
-После старта откроется http://localhost:3001/frontend/main-module.html
+| Порт | Назначение |
+|------|------------|
+| `3001` | backend + frontend |
+| `5432` | PostgreSQL |
+| `6379` | Redis |
+| `1025` | SMTP Mailpit |
+| `8025` | Web-интерфейс Mailpit |
 
-Логин/пароль тестового админа уже зашит в SQL-схему:
+Если порт занят, его можно поменять в `.env`.
 
+## Быстрый запуск
+
+Скачать проект:
+
+```bash
+git clone https://github.com/secondgmailforme-create/curs2.git
+cd curs2
 ```
-testadmin2@mail.com
-12345678
-```
 
-Если предпочитаете руками:
+Запустить через Docker Compose:
 
 ```bash
 docker compose up --build -d
+```
+
+Открыть приложение:
+
+```text
+http://localhost:3001/frontend/main-module.html
+```
+
+Или открыть корень:
+
+```text
+http://localhost:3001
+```
+
+Посмотреть логи backend:
+
+```bash
 docker compose logs -f backend
 ```
 
-## Управление
+## Запуск через управляющие скрипты
 
-Самый удобный путь — запустить `curs5.bat`. Это меню, в котором всё, что
-обычно нужно: старт, стоп, рестарт бэкенда после правки `.env`, логи,
-открытие приложения и Mailpit в браузере, `psql` внутрь контейнера,
-шелл в backend, полная очистка.
+В проекте есть готовые bat/sh-скрипты для управления Docker-стеком. Они лежат в папке:
 
-Если меню не нужно — есть короткие батники:
+```text
+curs5-scripts/
+```
 
-| Файл                  | Что делает                                              |
-|-----------------------|---------------------------------------------------------|
-| `up.bat`              | поднимает всё и открывает приложение в браузере         |
-| `down.bat`            | гасит контейнеры (данные остаются)                      |
-| `down.bat --purge`    | гасит и удаляет volume'ы (БД будет пересоздана с нуля)  |
-| `restart-backend.bat` | пересоздаёт только backend — после правки `.env`        |
-| `logs.bat`            | хвост логов backend, выход — Ctrl-C                     |
+Это удобный вариант, чтобы не писать Docker-команды вручную.
 
-Для Linux/macOS — `curs5.sh`, `start.sh`, `stop.sh` с тем же смыслом.
+### Windows
 
-## Что внутри (для понимания)
+Главный скрипт-меню:
 
-Четыре контейнера:
+```text
+curs5-scripts/curs5.bat
+```
 
-- `curs5-postgres` — PostgreSQL 16. Схема `backend/base_data/shema.sql`
-  применяется автоматически при первом запуске пустого тома.
-- `curs5-redis` — Redis 7. Используется для сессий и rate-limit.
-- `curs5-backend` — Node.js 20. Кроме API, отдаёт `frontend/` как статику.
-- `curs5-mailpit` — фейковый SMTP с веб-интерфейсом на :8025. Нужен только
-  если в `.env` не задан реальный SMTP. Иначе просто стоит молча.
+Его можно открыть двойным кликом или через терминал:
 
-Данные лежат в volume'ах `curs5_pg_data`, `curs5_redis_data`, `curs5_app_logs`.
-Пока вы их не удалили — БД переживает любые `down` и пересборки.
+```bat
+cd curs5-scripts
+curs5.bat
+```
 
-## `.env`
+В меню есть пункты:
 
-Файл `.env` уже лежит в репозитории с рабочими значениями (это не прод,
-секреты можно). Что там стоит знать:
+| Пункт | Что делает |
+|------|------------|
+| `1` | запуск с пересборкой: `up --build -d` |
+| `2` | запуск без пересборки |
+| `3` | остановка контейнеров |
+| `4` | пересоздание backend после изменения `.env` |
+| `5` | полная пересборка backend без кэша |
+| `6` | логи backend |
+| `7` | логи всех сервисов |
+| `8` | статус контейнеров |
+| `9` | открыть приложение в браузере |
+| `M` | открыть Mailpit |
+| `P` | открыть `psql` внутри postgres-контейнера |
+| `B` | открыть shell внутри backend-контейнера |
+| `R` | полная очистка с удалением volume'ов |
+| `0` | выход |
 
-- `DB_HOST` и `REDIS_URL` сюда **не пишите** — они захардкожены в
-  `docker-compose.yml`, потому что внутри докер-сети сервисы находятся
-  по именам (`postgres`, `redis`), а не по `localhost`.
-- Если хотите отправлять реальные письма (например, через Gmail) —
-  заполните `SMTP_HOST/PORT/USER/PASS/FROM/EMAIL_USER`. Для Gmail нужен
-  App Password (не пароль от аккаунта).
-- Если оставите `SMTP_*` пустыми — все письма уйдут в Mailpit, открываете
-  http://localhost:8025 и смотрите.
-- `AI_API_URL` — это куда бэкенд ходит за ответами AI. Если LM Studio
-  стоит у вас на той же машине, используйте `http://host.docker.internal:1234/v1`.
-  Если на другом компьютере по Tailscale — `http://<его-tailscale-ip>:1234/v1`.
-  В самом LM Studio обязательно включить «Serve on Local Network»,
-  иначе слушает только 127.0.0.1 и снаружи никто не достучится.
-- OAuth (Google/Yandex/VK) выключен, если соответствующие `_CLIENT_ID/SECRET`
-  пустые. Иконки на форме логина в этом случае при клике вернут 500 —
-  это особенность исходного кода, на остальной функционал не влияет.
+Также есть короткие bat-скрипты:
 
-После правки `.env` нужен **рестарт backend**:
+| Файл | Назначение |
+|------|------------|
+| `curs5-scripts/up.bat` | быстрый запуск с пересборкой и открытием приложения |
+| `curs5-scripts/start.bat` | запуск с build + up, оставлен как альтернативный старт |
+| `curs5-scripts/down.bat` | остановка контейнеров |
+| `curs5-scripts/down.bat --purge` | остановка и удаление volume'ов |
+| `curs5-scripts/stop.bat` | остановка контейнеров с паузой в конце |
+| `curs5-scripts/stop.bat --purge` | остановка и удаление данных |
+| `curs5-scripts/restart-backend.bat` | пересоздание только backend |
+| `curs5-scripts/logs.bat` | просмотр логов backend |
+
+Обычный сценарий на Windows:
+
+```bat
+cd curs5-scripts
+curs5.bat
+```
+
+Или быстро:
+
+```bat
+cd curs5-scripts
+up.bat
+```
+
+### Linux / macOS
+
+Главное меню:
+
+```bash
+cd curs5-scripts
+chmod +x curs5.sh start.sh stop.sh
+./curs5.sh
+```
+
+Быстрый запуск:
+
+```bash
+cd curs5-scripts
+chmod +x start.sh
+./start.sh
+```
+
+Остановка:
+
+```bash
+cd curs5-scripts
+./stop.sh
+```
+
+Остановка с удалением данных:
+
+```bash
+cd curs5-scripts
+./stop.sh --purge
+```
+
+## Ручное управление через Docker Compose
+
+Если скрипты не нужны, можно использовать команды напрямую из корня проекта.
+
+Запуск с пересборкой:
+
+```bash
+docker compose up --build -d
+```
+
+Запуск без пересборки:
+
+```bash
+docker compose up -d
+```
+
+Статус контейнеров:
+
+```bash
+docker compose ps
+```
+
+Логи backend:
+
+```bash
+docker compose logs -f backend
+```
+
+Логи всех сервисов:
+
+```bash
+docker compose logs -f
+```
+
+Остановка:
+
+```bash
+docker compose down
+```
+
+Остановка с удалением данных:
+
+```bash
+docker compose down -v
+```
+
+Пересоздать только backend:
 
 ```bash
 docker compose up -d --force-recreate backend
 ```
 
-либо `restart-backend.bat`, либо пункт `[4]` в меню `curs5.bat`.
-
-## Что было поправлено в исходниках
-
-Чтобы оно вообще завелось, пришлось поправить пару мест в `backend/`:
-
-1. В `package.json` не было `winston` и `winston-daily-rotate-file`, хотя
-   `server.js` их `require`-ит. Dockerfile доустанавливает их отдельно.
-2. В `backend/base_data/shema.sql` — две вещи: в таблице `users` не
-   хватало запятых после двух `BOOLEAN DEFAULT TRUE`, и `chat_messages`
-   создавалась раньше `tickets`, на которую ссылается. Поправил.
-
-Сам код приложения никак не трогал.
-
-## Когда что-то не работает
-
-**`port is already allocated`** — поменяйте `*_PORT_HOST` в `.env` на
-свободные и `up.bat` заново.
-
-**В логах `Skipping initialization` у postgres, а в БД пусто** — значит,
-вы запускали Postgres с другим именем БД/паролем, у вас остался старый
-volume, и схема не применилась. Лечится `down.bat --purge` + `up.bat`.
-
-**`Error: Пользователь не найден` при входе** — у вас в браузере остались
-куки/JWT от прошлой жизни БД (вы делали `--purge`). Зайдите в инкогнито
-или почистите cookies сайта.
-
-**`Failed to send email` / `ECONNREFUSED 127.0.0.1:587`** — в `.env`
-прописан SMTP, до которого бэкенд не может достучаться. Либо очистите
-SMTP-блок (письма поедут в Mailpit), либо проверьте, что хост/порт
-живые и снаружи доступны.
-
-**`ai error: connect ECONNREFUSED <ip>:1234`** — LM Studio либо не запущен,
-либо у него Start не нажат, либо «Serve on Local Network» выключен.
-Проверьте на той машине, где он стоит: `curl http://localhost:1234/v1/models`
-должен вернуть JSON.
-
-**Кириллица в `.bat` сыпет «is not recognized as a command»** — это
-известная боль cmd.exe. Все батники в репозитории уже в ASCII, проблемы
-быть не должно. Если редактируете — сохраняйте в ASCII/CRLF, не в UTF-8.
-
-## Полезные команды напрямую
+Пересобрать backend без кэша:
 
 ```bash
-docker compose ps                                  # кто живой
-docker compose logs -f backend                     # хвост логов
-docker compose exec backend sh                     # внутрь контейнера
-docker compose exec postgres psql -U helpdesk -d helpdesk
-docker compose exec redis redis-cli
-docker compose down                                # стоп
-docker compose down -v                             # стоп и снести БД
+docker compose build --no-cache backend
+docker compose up -d backend
 ```
 
-## Структура
+## Тестовый вход
 
+В начальных данных есть тестовый администратор:
+
+```text
+Email: testadmin2@mail.com
+Password: 12345678
 ```
-curs5/
-├── backend/                 # Node.js приложение
-│   ├── Dockerfile           # образ бэкенда
-│   ├── base_data/shema.sql  # схема БД, грузится в Postgres автоматом
-│   ├── controllers/ services/ routes/ ...
+
+Он создаётся при первичной инициализации базы из файла:
+
+```text
+backend/base_data/shema.sql
+```
+
+Если база уже была создана раньше, SQL-файл повторно автоматически не применяется. Для пересоздания базы нужно удалить volume'ы:
+
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
+## Что поднимается в Docker
+
+В `docker-compose.yml` описаны четыре сервиса.
+
+### `postgres`
+
+PostgreSQL 16. Хранит пользователей, заявки, сообщения, уведомления, рейтинги, логи и остальные данные.
+
+Контейнер:
+
+```text
+curs5-postgres
+```
+
+Схема БД:
+
+```text
+backend/base_data/shema.sql
+```
+
+### `redis`
+
+Redis 7. Используется для сессий, rate-limit и вспомогательных данных.
+
+Контейнер:
+
+```text
+curs5-redis
+```
+
+### `backend`
+
+Node.js приложение. Запускает Express API, Socket.IO и отдаёт frontend как статику.
+
+Контейнер:
+
+```text
+curs5-backend
+```
+
+Основной файл:
+
+```text
+backend/server.js
+```
+
+### `mailpit`
+
+Тестовый SMTP-сервер. Нужен для локальной проверки писем.
+
+Контейнер:
+
+```text
+curs5-mailpit
+```
+
+Web-интерфейс:
+
+```text
+http://localhost:8025
+```
+
+## `.env`
+
+Настройки проекта хранятся в `.env` в корне проекта.
+
+Основные переменные:
+
+```env
+# Порты
+BACKEND_PORT_HOST=3001
+DB_PORT_HOST=5432
+REDIS_PORT_HOST=6379
+MAILPIT_SMTP_PORT_HOST=1025
+MAILPIT_UI_PORT_HOST=8025
+
+# PostgreSQL
+DB_NAME=helpdesk
+DB_USER=helpdesk
+DB_PASSWORD=helpdesk_secret
+
+# Приложение
+NODE_ENV=production
+PORT=3001
+FRONTEND_URL=http://localhost:3001
+
+# JWT / сессии
+JWT_SECRET=change_me
+JWT_EXPIRES_IN=7d
+SESSION_SECRET=change_me
+
+# SMTP
+SMTP_HOST=
+SMTP_PORT=
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
+EMAIL_USER=
+
+# AI
+AI_API_URL=
+AI_MODEL_NAME=
+CLASSIFIER_URL=
+```
+
+Внутри Docker-сети backend подключается к PostgreSQL и Redis по именам сервисов:
+
+```text
+postgres
+redis
+```
+
+Поэтому `DB_HOST` и `REDIS_URL` задаются в `docker-compose.yml`.
+
+После изменения `.env` обычно нужно пересоздать backend:
+
+```bash
+docker compose up -d --force-recreate backend
+```
+
+Или через меню:
+
+```text
+curs5.bat -> пункт 4
+```
+
+## SMTP и письма
+
+Если реальный SMTP не настроен, письма удобно смотреть через Mailpit:
+
+```text
+http://localhost:8025
+```
+
+Если используется Gmail, нужен App Password, а не обычный пароль от аккаунта.
+
+Переменные для SMTP:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password
+SMTP_FROM=your_email@gmail.com
+EMAIL_USER=your_email@gmail.com
+```
+
+## AI
+
+AI-подключение задаётся переменными:
+
+```env
+AI_API_URL=
+AI_MODEL_NAME=
+CLASSIFIER_URL=
+```
+
+Если LM Studio запущен на той же машине, где Docker Desktop:
+
+```env
+AI_API_URL=http://host.docker.internal:1234/v1
+```
+
+Если AI-сервис на другой машине, нужно указать её IP и порт.
+
+## Структура проекта
+
+```text
+curs2/
+├── backend/
+│   ├── base_data/
+│   │   └── shema.sql
+│   ├── constants/
+│   ├── controllers/
+│   ├── middlewares/
+│   ├── queries/
+│   ├── repositories/
+│   ├── routes/
+│   ├── schemas/
+│   ├── services/
+│   ├── utils/
+│   ├── Dockerfile
+│   ├── package.json
 │   └── server.js
-├── frontend/                # статические HTML/CSS/JS
-├── docker-compose.yml       # postgres + redis + mailpit + backend
-├── .env                     # реальные настройки (включая SMTP)
-├── .env.example             # шаблон
-├── curs5.bat / curs5.sh     # меню управления
-├── up.bat / down.bat / logs.bat / restart-backend.bat
-└── README.md                # этот файл
+├── frontend/
+│   ├── css/
+│   ├── files/
+│   ├── htmls/
+│   ├── scripts-js/
+│   └── main-module.html
+├── curs5-scripts/
+│   ├── curs5.bat
+│   ├── curs5.sh
+│   ├── up.bat
+│   ├── start.bat
+│   ├── down.bat
+│   ├── stop.bat
+│   ├── restart-backend.bat
+│   ├── logs.bat
+│   ├── start.sh
+│   └── stop.sh
+├── docker-compose.yml
+└── README.md
+```
+
+## Backend
+
+Backend находится в папке:
+
+```text
+backend/
+```
+
+Основные части:
+
+| Папка | Назначение |
+|------|------------|
+| `controllers/` | обработка HTTP-запросов |
+| `services/` | бизнес-логика |
+| `repositories/` | работа с базой данных |
+| `routes/` | API-маршруты |
+| `middlewares/` | авторизация, роли, загрузка файлов, ошибки |
+| `schemas/` | Joi-валидация входных данных |
+| `queries/` | SQL-запросы |
+| `constants/` | роли, статусы и другие константы |
+| `base_data/` | SQL-схема базы данных |
+| `utils/` | вспомогательные функции |
+
+## Frontend
+
+Frontend находится в папке:
+
+```text
+frontend/
+```
+
+Это статические HTML, CSS и JS файлы. Backend отдаёт их через Express.
+
+Основные части:
+
+| Папка | Назначение |
+|------|------------|
+| `htmls/auth/` | вход, регистрация, восстановление пароля |
+| `htmls/client/` | клиентский кабинет и чат |
+| `htmls/operator/` | интерфейс оператора |
+| `htmls/expert/` | интерфейс эксперта |
+| `htmls/admin/` | административная панель |
+| `css/` | стили |
+| `scripts-js/` | frontend-логика |
+| `files/` | изображения и статические файлы |
+
+## Основные API-разделы
+
+| API | Назначение |
+|-----|------------|
+| `/api/auth` | регистрация, вход, выход, восстановление пароля |
+| `/api/tickets` | заявки, комментарии, вложения, история |
+| `/api/admin` | административная панель |
+| `/api/operator` | действия оператора |
+| `/api/expert` | действия эксперта |
+| `/api/notifications` | уведомления |
+| `/api/ratings` | оценки операторов и экспертов |
+| `/api/profile` | профиль пользователя |
+| `/api/translate` | перевод текста |
+
+## Роли
+
+| ID | Роль | Назначение |
+|----|------|------------|
+| `1` | `client` | клиент |
+| `2` | `operator` | оператор |
+| `3` | `expert` | эксперт |
+| `4` | `admin` | администратор |
+
+Роли описаны в файле:
+
+```text
+backend/constants/roles.js
+```
+
+## База данных
+
+Подключиться к PostgreSQL внутри контейнера:
+
+```bash
+docker compose exec postgres psql -U helpdesk -d helpdesk
+```
+
+Или через меню Windows:
+
+```text
+curs5.bat -> пункт P
+```
+
+Полезные команды внутри `psql`:
+
+```sql
+\dt
+SELECT * FROM users;
+SELECT * FROM tickets;
+SELECT * FROM statuses;
+```
+
+Основные таблицы:
+
+| Таблица | Назначение |
+|---------|------------|
+| `roles` | роли пользователей |
+| `users` | пользователи |
+| `user_tokens` | refresh-токены |
+| `verification_codes` | email-коды подтверждения |
+| `password_resets` | токены сброса пароля |
+| `statuses` | статусы заявок |
+| `categories` | категории обращений |
+| `tickets` | заявки |
+| `chat_messages` | сообщения чата |
+| `comments` | комментарии |
+| `ticket_ratings` | оценки |
+| `attachments` | вложения |
+| `ticket_history` | история изменений |
+| `logs` | журнал действий |
+| `notifications` | уведомления |
+| `ai_training_data` | данные для AI |
+
+## Логи
+
+Логи backend:
+
+```bash
+docker compose logs -f backend
+```
+
+Логи всех сервисов:
+
+```bash
+docker compose logs -f
+```
+
+Через Windows-меню:
+
+```text
+curs5.bat -> пункт 6  # backend
+curs5.bat -> пункт 7  # все сервисы
+```
+
+## Тесты
+
+Для backend добавлены unit-тесты на Jest.
+
+Запуск:
+
+```bash
+cd backend
+npm install
+npm test
+```
+
+С покрытием:
+
+```bash
+npm run test:coverage
+```
+
+Тесты лежат здесь:
+
+```text
+backend/__tests__/
+```
+
+## Частые ситуации
+
+### Порт занят
+
+Поменять порт в `.env`, например:
+
+```env
+BACKEND_PORT_HOST=3002
+DB_PORT_HOST=5433
+REDIS_PORT_HOST=6380
+```
+
+После этого перезапустить:
+
+```bash
+docker compose up -d
+```
+
+### Нужно полностью пересоздать базу
+
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
+Или через меню:
+
+```text
+curs5.bat -> пункт R
+```
+
+### Нужно посмотреть письма
+
+Открыть:
+
+```text
+http://localhost:8025
+```
+
+Или:
+
+```text
+curs5.bat -> пункт M
+```
+
+### Нужно зайти внутрь backend-контейнера
+
+```bash
+docker compose exec backend sh
+```
+
+Или:
+
+```text
+curs5.bat -> пункт B
+```
+
+## Короткая шпаргалка
+
+```bash
+# запуск
+docker compose up --build -d
+
+# статус
+docker compose ps
+
+# логи backend
+docker compose logs -f backend
+
+# остановка
+docker compose down
+
+# полная очистка
+docker compose down -v
+
+# psql
+docker compose exec postgres psql -U helpdesk -d helpdesk
+
+# shell backend
+docker compose exec backend sh
+```
+
+На Windows удобнее всего пользоваться:
+
+```text
+curs5-scripts/curs5.bat
 ```
